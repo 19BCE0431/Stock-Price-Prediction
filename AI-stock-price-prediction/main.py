@@ -7,30 +7,35 @@ from prophet.plot import plot_plotly
 from plotly import graph_objs as go
 import pandas as pd
 
-# App configuration
+# Configure Streamlit page
 st.set_page_config(page_title="Stock Price Prediction", layout="centered")
+
+# Title and subtitle
 st.title("📈 AI Stock Price Prediction")
-st.write("Use Prophet to forecast stock prices interactively.")
+st.write("Forecast stock prices using Prophet with interactive visualization.")
 
 # Constants
 START = "2015-01-01"
 TODAY = date.today().strftime("%Y-%m-%d")
 
-# Use default ticker list to avoid missing CSV issues
+# Ticker selection
 stocks = ("AAPL", "GOOG", "NFLX", "TSLA", "MSFT", "META", "AMZN")
-selected_stock = st.selectbox("Select stock for prediction", stocks)
+selected_stock = st.selectbox("Select a stock for prediction", stocks)
 
 n_years = st.slider("Years of prediction:", 1, 4)
 period = n_years * 365
 
-# Use st.cache_data instead of st.cache
+# Function to load data with caching and safety
 @st.cache_data
 def load_data(ticker):
     data = yf.download(ticker, START, TODAY)
+    if data.empty:
+        st.error(f"No data found for {ticker}. Please try another stock.")
+        st.stop()
     data.reset_index(inplace=True)
     return data
 
-# Load and display raw data
+# Load and display data
 data_load_state = st.text("Loading data...")
 data = load_data(selected_stock)
 data_load_state.text("Loading data... Done!")
@@ -48,10 +53,15 @@ def plot_raw_data():
 
 plot_raw_data()
 
-# Forecasting using Prophet
+# Prepare data for Prophet
 df_train = data[['Date', 'Close']].rename(columns={"Date": "ds", "Close": "y"})
+df_train = df_train.dropna()
+df_train['y'] = pd.to_numeric(df_train['y'], errors='coerce')
+df_train = df_train.dropna()
 
-# Cache Prophet model
+st.write(f"✅ Using {len(df_train)} rows of data for training.")
+
+# Train Prophet model with caching
 @st.cache_resource
 def train_prophet(df):
     m = Prophet()
@@ -60,6 +70,7 @@ def train_prophet(df):
 
 m = train_prophet(df_train)
 
+# Forecast
 future = m.make_future_dataframe(periods=period)
 forecast = m.predict(future)
 
@@ -77,4 +88,4 @@ st.subheader("Forecast components")
 fig2 = m.plot_components(forecast)
 st.write(fig2)
 
-st.info("✅ App ready for Streamlit Cloud deployment without CSV dependency or cache deprecation issues.")
+st.success("✅ App is running cleanly without errors and is ready for sharing and deployment.")
