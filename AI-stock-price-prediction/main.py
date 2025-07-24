@@ -15,7 +15,7 @@ st.title("📈 AI Stock Price Prediction")
 st.write("Forecast stock prices using Prophet with interactive visualization.")
 
 # Constants
-START = "2015-01-01"
+START = "2020-01-01"
 TODAY = date.today().strftime("%Y-%m-%d")
 
 # Ticker selection
@@ -25,7 +25,7 @@ selected_stock = st.selectbox("Select a stock for prediction", stocks)
 n_years = st.slider("Years of prediction:", 1, 4)
 period = n_years * 365
 
-# Function to load data with caching and safety
+# Function to load data safely
 @st.cache_data
 def load_data(ticker):
     data = yf.download(ticker, START, TODAY)
@@ -53,13 +53,25 @@ def plot_raw_data():
 
 plot_raw_data()
 
-# Prepare data for Prophet
-df_train = data[['Date', 'Close']].rename(columns={"Date": "ds", "Close": "y"})
-df_train = df_train.dropna()
-df_train['y'] = pd.to_numeric(df_train['y'], errors='coerce')
-df_train = df_train.dropna()
+# Debug: Show available columns
+st.write("Columns in loaded data:", data.columns.tolist())
 
-st.write(f"✅ Using {len(df_train)} rows of data for training.")
+# Safe preparation for Prophet
+try:
+    df_train = data[['Date', 'Close']].copy()
+    df_train.columns = ['ds', 'y']
+    df_train = df_train.dropna(subset=['ds', 'y'])
+    df_train['y'] = pd.to_numeric(df_train['y'], errors='coerce')
+    df_train = df_train.dropna(subset=['y'])
+except Exception as e:
+    st.error(f"❌ Error preparing data for Prophet: {e}")
+    st.stop()
+
+if df_train.empty:
+    st.error("❌ No valid data available for training Prophet. Please try another stock or adjust date range.")
+    st.stop()
+
+st.write(f"✅ Using {len(df_train)} rows of clean data for Prophet.")
 
 # Train Prophet model with caching
 @st.cache_resource
